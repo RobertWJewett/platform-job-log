@@ -52,13 +52,13 @@ def main() -> None:
     if run_log.title != config.RUN_LOG_TAB:
         run_log.update_title(config.RUN_LOG_TAB)
     if run_log.row_values(1) != config.RUN_LOG_HEADERS:
-        run_log.update("A1", [config.RUN_LOG_HEADERS])
+        run_log.update([config.RUN_LOG_HEADERS], "A1")
         run_log.freeze(rows=1)
 
     existing_titles = [ws.title for ws in sh.worksheets()]
     if config.CURRENT_STATUS_TAB not in existing_titles:
         status = sh.add_worksheet(title=config.CURRENT_STATUS_TAB, rows=100, cols=8)
-        status.update("A1", [["job_name", "job_type", "reference_time", "last_status", "flag", "detail", "checked_at"]])
+        status.update([["job_name", "job_type", "reference_time", "last_status", "flag", "detail", "checked_at"]], "A1")
         status.freeze(rows=1)
 
     print("Tabs:", [ws.title for ws in sh.worksheets()])

@@ -41,10 +41,10 @@ def _expected_runs(cron: str, tz_name: str, start: datetime, end: datetime) -> l
     return runs
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--days", type=int, default=60, help="How many days ahead to pre-seed")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     ws = worksheet(config.RUN_LOG_TAB)
     existing_rows = ws.get_all_values()

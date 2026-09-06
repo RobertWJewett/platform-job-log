@@ -49,7 +49,7 @@ def main() -> None:
 
     status_ws = worksheet(config.CURRENT_STATUS_TAB)
     status_ws.clear()
-    status_ws.update("A1", output)
+    status_ws.update(output, "A1")
     status_ws.freeze(rows=1)
 
     overdue = [r for r in output[1:] if r[4] in ("OVERDUE", "FAILED")]
