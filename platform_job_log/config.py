@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 
 # Filled in by scripts/create_sheet.py once the sheet is created.
-SPREADSHEET_ID = os.environ.get("JOB_LOG_SPREADSHEET_ID", "")
+SPREADSHEET_ID = os.environ.get("JOB_LOG_SPREADSHEET_ID", "1IwS5Fypr2gTlHHTOJy1pzNx161yibIgCA_MX4-mkt_o")
 
 RUN_LOG_TAB = "Run Log"
 CURRENT_STATUS_TAB = "Current Status"
