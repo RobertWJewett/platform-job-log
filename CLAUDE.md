@@ -85,10 +85,43 @@ monitoring failure must never break the job it's monitoring.
 
 ## Current status
 
-Built 2026-09-06. Two jobs registered as the initial proof of the pattern
-before expanding further: `clio-reporting-sync-job` (scheduled) and
-`deliver-clio-recordings` (frequent, in `rc-recording-delivery`). See
-`PROJECT_TRACKER.md` for what's actually live vs. still pending.
+**Live and verified end-to-end as of 2026-09-06.** The "System Status"
+Google Sheet (id in `platform_job_log/config.py`) was created by hand by
+Robert (a plain GCP service account has zero Drive storage quota and can't
+create a new file itself — confirmed live, see `scripts/setup_sheet.py`'s
+docstring) and shared as Editor with three service accounts:
+`platform-job-log@...` (this repo's own maintenance job),
+`clio-reporting-sync@...`, and `1731274938-compute@developer.gserviceaccount.com`
+(rc-webhook-listener's runtime identity, used by `deliver-clio-recordings`).
+
+Both registered jobs confirmed logging real rows: `clio-reporting-sync-job`
+(scheduled) and `deliver-clio-recordings` (frequent, in
+`rc-recording-delivery`). `platform-job-log` itself is deployed as a small
+Cloud Run Job with two Cloud Scheduler triggers:
+`platform-job-log-update-status` (every 15 min, refreshes Current Status)
+and `platform-job-log-seed-scheduled` (daily 8:00 UTC, extends the rolling
+pre-seeded window). Both needed the same per-job `run.invoker` IAM binding
+documented in `PLATFORM_OVERVIEW.md`'s Cloud Run V2 Jobs gotcha — applied
+from the start this time, not discovered the hard way again.
+
+`platform-job-log` itself had to be made **public** on GitHub (matching
+`jh-clio-lib`'s precedent) — Cloud Build's anonymous `git clone` can't
+authenticate to a private repo, and this repo has no secrets in it (the
+spreadsheet ID isn't sensitive on its own).
+
+One real bug caught live during this rollout, worth remembering: the
+spreadsheet ID was set locally in `config.py` but not committed before the
+first deploy, so the deployed job pulled an older version of this package
+with no ID configured and failed with `RuntimeError: No spreadsheet id
+configured` — logging failed silently (by design — a monitoring failure must
+never break the job it's monitoring) and was only caught by checking the
+Cloud Run Job's own stdout logs directly. Same root-cause shape as the
+`extra_params` miss on `jh-clio-lib` earlier the same day: always confirm a
+git-dependency change is actually pushed, not just saved locally, before
+trusting a redeploy to pick it up.
+
+See `PROJECT_TRACKER.md` for the rollout list of what's registered vs. still
+pending expansion.
 
 ## Open items (from the original design brief)
 
