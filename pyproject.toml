@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "platform-job-log"
+version = "0.1.0"
+description = "Shared dead-man's-switch job monitoring for the JH Law automation platform"
+requires-python = ">=3.10"
+dependencies = [
+    "gspread>=6.1.0",
+    "google-auth>=2.30.0",
+    "croniter>=2.0.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["platform_job_log*"]
