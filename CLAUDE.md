@@ -94,15 +94,40 @@ docstring) and shared as Editor with three service accounts:
 `clio-reporting-sync@...`, and `1731274938-compute@developer.gserviceaccount.com`
 (rc-webhook-listener's runtime identity, used by `deliver-clio-recordings`).
 
-Both registered jobs confirmed logging real rows: `clio-reporting-sync-job`
-(scheduled) and `deliver-clio-recordings` (frequent, in
-`rc-recording-delivery`). `platform-job-log` itself is deployed as a small
-Cloud Run Job with two Cloud Scheduler triggers:
-`platform-job-log-update-status` (every 15 min, refreshes Current Status)
-and `platform-job-log-seed-scheduled` (daily 8:00 UTC, extends the rolling
-pre-seeded window). Both needed the same per-job `run.invoker` IAM binding
-documented in `PLATFORM_OVERVIEW.md`'s Cloud Run V2 Jobs gotcha — applied
-from the start this time, not discovered the hard way again.
+**Five jobs registered as of 2026-09-06**, all confirmed logging real rows:
+`clio-reporting-sync-job`, `lawpay-ingest-job`, `matterkey-maintenance-job`,
+`matterkey-lm-index-job` (all `scheduled`), and `deliver-clio-recordings` in
+`rc-recording-delivery` (`frequent`). Sheet shared with the runtime service
+account of every registered job (`clio-reporting-sync@...`,
+`lawpay-connector@...`, `1731274938-compute@developer.gserviceaccount.com`
+— shared across `deliver-clio-recordings`, `matterkey-maintenance-job`, and
+`matterkey-lm-index-job`, all three's default runtime identity — and
+`platform-job-log@...` for this repo's own maintenance job).
+
+`platform-job-log` itself runs as **two** Cloud Run Jobs sharing one image
+(`platform-job-log` for the every-15-min Current Status refresh,
+`platform-job-log-seed` for the daily 8:00 UTC pre-seed window extension,
+via the scheduler job `platform-job-log-seed-scheduled`) — split into two
+specifically because a Cloud Scheduler `containerOverrides` body 403s even
+with the correct IAM binding in place (see `PLATFORM_OVERVIEW.md`'s Cloud
+Run V2 Jobs entry); each has its args baked in at deploy time instead. Both
+needed the same per-job `run.invoker` IAM binding documented there too —
+applied from the start on both, not discovered the hard way again.
+
+**A real concurrency bug found and fixed registering the last three jobs**:
+running all three simultaneously for a first test caused `log_run_start`'s
+fallback append path (`len(get_all_values())` read immediately after
+`append_row()`) to race between the concurrent processes — one job's row
+went missing entirely, another's stayed permanently stuck with no
+completion (its `log_run_complete` updated a *different* job's row instead
+of its own). Fixed by reading the real row number out of `append_row`'s own
+API response (`updates.updatedRange`) instead of a follow-up read — this is
+authoritative and safe under concurrency since it reflects the Sheets
+API's own placement decision for that specific request. All 7 consumer
+jobs/services were redeployed to pick up the fix (cheap, and the bug is
+real for any of them, not just the three that happened to trigger it);
+the corrupted test rows were deleted from the sheet before re-verifying
+with a clean sequential run.
 
 `platform-job-log` itself had to be made **public** on GitHub (matching
 `jh-clio-lib`'s precedent) — Cloud Build's anonymous `git clone` can't
