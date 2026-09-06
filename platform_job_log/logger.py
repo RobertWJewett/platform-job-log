@@ -6,6 +6,7 @@ Cloud Run logs) rather than propagated.
 """
 from __future__ import annotations
 
+import re
 import traceback
 from datetime import datetime, timezone
 
@@ -13,9 +14,26 @@ from platform_job_log import config
 from platform_job_log.registry import JOBS
 from platform_job_log.sheets_client import worksheet
 
+_UPDATED_RANGE_ROW_RE = re.compile(r"![A-Z]+(\d+)")
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _appended_row_number(append_response: dict) -> int:
+    """Extracts the real row number Sheets actually wrote to from append_row's
+    own response (`updates.updatedRange`, e.g. "'Run Log'!A61:G61") -- the
+    authoritative, race-safe source, unlike re-reading row count afterward.
+    Confirmed live 2026-09-06: three jobs' log_run_start calls landing within
+    the same second caused `len(get_all_values())`-after-append to
+    mis-attribute rows between them (one job's row went missing, another's
+    stayed permanently incomplete) -- concurrent scheduled-job runs are a
+    real scenario (a manual trigger overlapping the nightly schedule, two
+    jobs sharing a run time), not a hypothetical to design around later."""
+    updated_range = append_response["updates"]["updatedRange"]
+    match = _UPDATED_RANGE_ROW_RE.search(updated_range)
+    return int(match.group(1))
 
 
 def log_run_start(job_name: str) -> int | None:
@@ -59,9 +77,13 @@ def log_run_start(job_name: str) -> int | None:
         if best_row_idx is None:
             # No pre-seeded row found (a pre-seeding gap, or this job was just
             # registered) -- append a fresh row rather than silently losing this
-            # run's evidence entirely.
-            ws.append_row([job_name, spec.job_type, "", _now_iso(), "", "", "no pre-seeded row found"])
-            return len(ws.get_all_values())
+            # run's evidence entirely. Row number comes from the append response
+            # itself (see _appended_row_number), not a follow-up read -- safe
+            # even if another job's log_run_start appends at the same instant.
+            response = ws.append_row(
+                [job_name, spec.job_type, "", _now_iso(), "", "", "no pre-seeded row found"]
+            )
+            return _appended_row_number(response)
 
         ws.update_cell(best_row_idx, actual_start_col + 1, _now_iso())
         return best_row_idx
