@@ -49,4 +49,27 @@ JOBS: dict[str, JobSpec] = {
         business_hours_timezone="America/Chicago",
         notes="RC call/voicemail recording delivery to Clio Documents API, every 15 minutes.",
     ),
+    "lawpay-ingest-job": JobSpec(
+        name="lawpay-ingest-job",
+        job_type="scheduled",
+        cron="0 13 * * 0-5",
+        timezone="UTC",
+        notes="Nightly LawPay settled-trust-transaction ingest/reconcile (ingest only, no Clio posting). "
+              "Skips Saturdays.",
+    ),
+    "matterkey-maintenance-job": JobSpec(
+        name="matterkey-maintenance-job",
+        job_type="scheduled",
+        cron="0 8 * * 0-5",
+        timezone="UTC",
+        notes="Nightly MatterKey custom-field extract/mint across all Clio matters. Skips Saturdays.",
+    ),
+    "matterkey-lm-index-job": JobSpec(
+        name="matterkey-lm-index-job",
+        job_type="scheduled",
+        cron="0 9 * * 0-5",
+        timezone="UTC",
+        notes="Nightly Clio<->Lawmatics MatterKey index build (clio_matterkey_index in Firestore). "
+              "Skips Saturdays.",
+    ),
 }

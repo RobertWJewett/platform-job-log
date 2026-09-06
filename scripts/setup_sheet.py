@@ -81,7 +81,9 @@ def _service_account_emails_for_registered_jobs() -> list[str]:
     when a new job is registered."""
     return [
         "clio-reporting-sync@jh-law-rc-clio-personal.iam.gserviceaccount.com",  # clio-reporting-sync-job
-        "1731274938-compute@developer.gserviceaccount.com",  # rc-webhook-listener (deliver-clio-recordings)
+        "1731274938-compute@developer.gserviceaccount.com",  # rc-webhook-listener (deliver-clio-recordings),
+                                                              # matterkey-maintenance-job, matterkey-lm-index-job
+        "lawpay-connector@jh-law-rc-clio-personal.iam.gserviceaccount.com",  # lawpay-ingest-job
     ]
 
 
