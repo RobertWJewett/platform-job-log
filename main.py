@@ -2,9 +2,10 @@
 """CLI entrypoint for platform-job-log's own maintenance tasks -- deployed as
 a small Cloud Run Job, triggered on its own Cloud Scheduler schedules:
 
-    python3 main.py update-status   # recomputes the Current Status tab (every 15 min)
-    python3 main.py seed-scheduled  # extends the pre-seeded expected-run window (daily)
-    python3 main.py setup-format    # one-time/re-run-safe dashboard formatting (not scheduled)
+    python3 main.py update-status     # recomputes the Current Status tab (every 15 min)
+    python3 main.py seed-scheduled    # extends the pre-seeded expected-run window (daily)
+    python3 main.py setup-format      # one-time/re-run-safe dashboard formatting (not scheduled)
+    python3 main.py cleanup-history   # one-time/re-run-safe stale-row cleanup (not scheduled)
 """
 from __future__ import annotations
 
@@ -14,21 +15,26 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from platform_job_log import formatting  # noqa: E402
+from platform_job_log import cleanup, formatting  # noqa: E402
 from scripts import seed_scheduled, update_status  # noqa: E402
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["update-status", "seed-scheduled", "setup-format"])
+    parser.add_argument(
+        "command",
+        choices=["update-status", "seed-scheduled", "setup-format", "cleanup-history"],
+    )
     args = parser.parse_args()
 
     if args.command == "update-status":
         update_status.main()
     elif args.command == "seed-scheduled":
         seed_scheduled.main(argv=[])
-    else:
+    elif args.command == "setup-format":
         formatting.apply_dashboard_formatting()
+    else:
+        cleanup.cleanup_frequent_history()
 
 
 if __name__ == "__main__":
