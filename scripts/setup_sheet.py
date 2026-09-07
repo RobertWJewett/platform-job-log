@@ -81,8 +81,16 @@ def _service_account_emails_for_registered_jobs() -> list[str]:
     when a new job is registered."""
     return [
         "clio-reporting-sync@jh-law-rc-clio-personal.iam.gserviceaccount.com",  # clio-reporting-sync-job
-        "1731274938-compute@developer.gserviceaccount.com",  # rc-webhook-listener (deliver-clio-recordings),
-                                                              # matterkey-maintenance-job, matterkey-lm-index-job
+        # Default compute SA -- covers every job/service still on the Gen 2 default identity:
+        # deliver-clio-recordings, retry-call-recordings, renew-rc-webhook (rc-webhook-listener);
+        # matterkey-maintenance-job, matterkey-lm-index-job; email-processor's 9 scheduler-triggered
+        # routes (retry-calendly-bookings, renew-graph-subscription, nightly-lm-duplicate-check,
+        # calendly-filing-digest-nightly, renew-clio-webhooks, mail-tracking-sync, poll-clio-grow,
+        # refresh-clio-manage-token, refresh-clio-grow-token); ntc-letters-sweep-job,
+        # clients-contact-sync-job; clio-email-filer's 2 routes (clio-filer-archive-closed-nightly,
+        # clio-filer-file-sent-items-nightly); activecampaign-badexperience-nightly;
+        # clio-phone-backfill-weekly; clio-hotstrings-populate-nightly; nightly-clio-sync.
+        "1731274938-compute@developer.gserviceaccount.com",
         "lawpay-connector@jh-law-rc-clio-personal.iam.gserviceaccount.com",  # lawpay-ingest-job
     ]
 
