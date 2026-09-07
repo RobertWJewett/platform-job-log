@@ -148,6 +148,59 @@ trusting a redeploy to pick it up.
 See `PROJECT_TRACKER.md` for the rollout list of what's registered vs. still
 pending expansion.
 
+**Expanded to 24 registered jobs and given real dashboard styling, 2026-09-07.**
+Robert flagged the Run Log tab hitting ~1000 rows and asked how to make the
+sheet dashboard-style rather than a wall of raw rows. Root cause: every
+`frequent`-type job's *successful* run appended a brand-new row forever, even
+though `status.py`'s `compute_frequent_status` only ever reads the single
+most recent one — `deliver-clio-recordings` alone (every 15 min) produced
+most of the existing bloat in ~2 days, and registering three more frequent
+jobs the same day (`mail-tracking-sync` /30min, `poll-clio-grow` /10min,
+`retry-call-recordings` /5min) would have made growth roughly 5-6x worse.
+
+Fixed two ways, both requested together ("go ahead with both", accepting the
+tradeoff that a frequent job's Run Log history now shows only its last
+success plus any failures, not a row for every single run — nothing reads
+that per-run history, and each job's own Cloud Run execution log already has
+the real per-run audit trail if it's ever needed):
+
+- **`logger.py`'s `log_run_complete`**: a `frequent`-type job's successful
+  run now **upserts** a single standing row per job (finds the last existing
+  row for that job with `status=success` and overwrites `actual_start`/
+  `completion_time`/`status`/`notes` in place) instead of appending a new
+  row every time. A **failure** still always appends a fresh, distinct row —
+  those are rare and worth keeping as dated history. `scheduled`-type jobs
+  and the "no pre-seeded row found" fallback path are unaffected (still
+  append). See `tests/test_logger.py`'s `FakeWorksheet`-based tests for the
+  upsert/append boundary cases.
+- **`platform_job_log/formatting.py`** (new, `setup-format` CLI command, not
+  scheduled — one-time/re-run-safe): colors the "Current Status" tab's data
+  rows by `flag` value via Sheets conditional formatting (red=FAILED,
+  orange=OVERDUE, gray=NO DATA, green=OK) and reorders tabs so "Current
+  Status" opens first, "Run Log" second. Only needs the ordinary
+  `spreadsheets` scope already used everywhere else in this package —
+  conditional formatting, cell formatting, and tab reordering are plain
+  Sheets API operations, not Drive operations, unlike `setup_sheet.py`'s
+  sharing step. Run once via `gcloud run jobs execute platform-job-log
+  --args=setup-format --region=us-central1` after a deploy (or any time the
+  rules need re-applying — it clears and re-adds its own conditional format
+  rules first, so re-running is safe).
+- **`scripts/update_status.py`** rewritten to sort jobs (FAILED → OVERDUE →
+  NO DATA → OK, alphabetical within each) so anything needing attention
+  floats to the top, and to write a merged, colored headline row 1
+  ("✅ All N job(s) healthy" / "⚠ N job(s) need attention — checked ...")
+  above the column headers (now row 2) and data (now row 3+). Frozen rows
+  bumped from 1 to 2 to match.
+
+Also folded into this session's work: the remaining 19 known Cloud Scheduler
+jobs on the platform were registered and wired (bringing the total from the
+initial 5-job pilot to 24) — see `PROJECT_TRACKER.md` for the full list.
+One pre-existing, unrelated finding surfaced while triggering them for the
+first time: the `nightly-lm-duplicate-check` Cloud Scheduler trigger was
+sitting **PAUSED** — not something this session changed, but worth Robert
+confirming whether that's intentional, since on its normal schedule it
+currently won't fire at all.
+
 ## Open items (from the original design brief)
 
 - Review cadence — Robert picking a daily-glance habit, not a blocker to building.

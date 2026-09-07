@@ -92,10 +92,30 @@ def log_run_start(job_name: str) -> int | None:
         return None
 
 
+def _find_last_success_row(ws, job_name: str, name_col: int, status_col: int) -> int | None:
+    """Returns the row number of the last (bottom-most) existing row for this
+    job with status 'success', or None if there isn't one yet."""
+    last = None
+    for i, row in enumerate(ws.get_all_values()[1:], start=2):
+        if len(row) <= max(name_col, status_col):
+            continue
+        if row[name_col] == job_name and row[status_col].strip().lower() == "success":
+            last = i
+    return last
+
+
 def log_run_complete(job_name: str, status: str, notes: str = "", row_ref: int | None = None) -> None:
     """Marks completion on the row `row_ref` (from log_run_start), or appends a
-    fresh row if row_ref is None -- the normal path for 'frequent' jobs, which
-    typically call only this, not log_run_start (see registry.py)."""
+    fresh row if row_ref is None -- the normal path for a 'scheduled' job with
+    no pre-seeded row found.
+
+    'frequent' jobs never pass row_ref (they don't call log_run_start -- see
+    registry.py) and a successful run upserts a single standing row per job
+    instead of appending a new one: nothing reads a frequent job's success
+    history beyond "when did it last succeed", so appending one row per run
+    (every 5-10 minutes, forever) only bloats the Run Log for no benefit.
+    Failures still append a fresh row each time -- those are rare and worth
+    keeping as distinct, dated entries."""
     spec = JOBS.get(job_name)
     job_type = spec.job_type if spec else "unknown"
     now = _now_iso()
@@ -107,7 +127,20 @@ def log_run_complete(job_name: str, status: str, notes: str = "", row_ref: int |
             ws.update_cell(row_ref, header.index("status") + 1, status)
             if notes:
                 ws.update_cell(row_ref, header.index("notes") + 1, notes)
-        else:
-            ws.append_row([job_name, job_type, "", now, now, status, notes])
+            return
+
+        if job_type == "frequent" and status.strip().lower() == "success":
+            header = ws.row_values(1)
+            name_col = header.index("job_name")
+            status_col = header.index("status")
+            existing_row = _find_last_success_row(ws, job_name, name_col, status_col)
+            if existing_row is not None:
+                ws.update_cell(existing_row, header.index("actual_start") + 1, now)
+                ws.update_cell(existing_row, header.index("completion_time") + 1, now)
+                ws.update_cell(existing_row, header.index("status") + 1, status)
+                ws.update_cell(existing_row, header.index("notes") + 1, notes)
+                return
+
+        ws.append_row([job_name, job_type, "", now, now, status, notes])
     except Exception:
         print(f"platform_job_log: log_run_complete failed for {job_name}: {traceback.format_exc()}", flush=True)

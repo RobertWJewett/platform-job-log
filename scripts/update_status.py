@@ -33,29 +33,50 @@ def _load_rows(raw: list[list[str]]) -> list[RunLogRow]:
     return rows
 
 
+# Sort order within the Current Status tab -- anything that needs a look
+# floats to the top; healthy jobs sink to the bottom.
+_FLAG_SORT_ORDER = {"FAILED": 0, "OVERDUE": 1, "NO DATA": 2, "OK": 3}
+
+_HEADER_ROW = ["job_name", "job_type", "reference_time", "last_status", "flag", "detail", "checked_at"]
+
+
 def main() -> None:
     run_log_ws = worksheet(config.RUN_LOG_TAB)
     rows = _load_rows(run_log_ws.get_all_values())
     now = datetime.now(timezone.utc)
     checked_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    output = [["job_name", "job_type", "reference_time", "last_status", "flag", "detail", "checked_at"]]
-    for spec in JOBS.values():
-        result = compute_status(spec, rows, now)
-        output.append([
-            result.job_name, result.job_type, result.reference_time,
-            result.last_status, result.flag, result.detail, checked_at,
-        ])
+    results = [compute_status(spec, rows, now) for spec in JOBS.values()]
+    results.sort(key=lambda r: (_FLAG_SORT_ORDER.get(r.flag, 4), r.job_name))
+
+    flagged = [r for r in results if r.flag in ("OVERDUE", "FAILED")]
+    if flagged:
+        headline = f"⚠ {len(flagged)} job(s) need attention — checked {checked_at}"
+        headline_color = {"red": 0.96, "green": 0.80, "blue": 0.80}
+    else:
+        headline = f"✅ All {len(results)} job(s) healthy — checked {checked_at}"
+        headline_color = {"red": 0.80, "green": 0.94, "blue": 0.80}
+
+    data_rows = [
+        [r.job_name, r.job_type, r.reference_time, r.last_status, r.flag, r.detail, checked_at]
+        for r in results
+    ]
 
     status_ws = worksheet(config.CURRENT_STATUS_TAB)
     status_ws.clear()
-    status_ws.update(output, "A1")
-    status_ws.freeze(rows=1)
+    status_ws.update([[headline] + [""] * (len(_HEADER_ROW) - 1), _HEADER_ROW] + data_rows, "A1")
+    status_ws.merge_cells("A1:G1")
+    status_ws.format("A1:G1", {
+        "backgroundColor": headline_color,
+        "textFormat": {"bold": True, "fontSize": 12},
+        "horizontalAlignment": "CENTER",
+    })
+    status_ws.format("A2:G2", {"textFormat": {"bold": True}})
+    status_ws.freeze(rows=2)
 
-    overdue = [r for r in output[1:] if r[4] in ("OVERDUE", "FAILED")]
-    print(f"Updated Current Status: {len(output) - 1} job(s), {len(overdue)} flagged.")
-    for r in overdue:
-        print(f"  {r[4]}: {r[0]} -- {r[5]}")
+    print(f"Updated Current Status: {len(results)} job(s), {len(flagged)} flagged.")
+    for r in flagged:
+        print(f"  {r.flag}: {r.job_name} -- {r.detail}")
 
 
 if __name__ == "__main__":
