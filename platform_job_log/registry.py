@@ -223,4 +223,13 @@ JOBS: dict[str, JobSpec] = {
               "Weekdays only (already excludes Sat+Sun). Registered under the scheduler job name "
               "(Cloud Run Job resource is 'clio-sync-job').",
     ),
+    "ad-attribution-nightly": JobSpec(
+        name="ad-attribution-nightly",
+        job_type="scheduled",
+        cron="15 10 * * 0-5",
+        timezone="UTC",
+        notes="Nightly Google Ads attribution: CallRail paid-ad calls -> Lawmatics prospect custom fields "
+              "(+ Clio matter mirror), then the daily tracking digest email. Skips Saturdays. "
+              "Repo: github.com/RobertWJewett/ad-attribution.",
+    ),
 }
